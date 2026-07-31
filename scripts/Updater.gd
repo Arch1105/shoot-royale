@@ -10,10 +10,8 @@ class_name Updater
 ## writes a tiny helper batch file that waits for this process to exit,
 ## moves the downloaded file into place, relaunches it, and deletes itself.
 
-## Filled in once the GitHub repo exists (see tools/README or the project's
-## setup notes) - until then, checks fail harmlessly with "repo_not_configured".
-const GITHUB_OWNER := "REPLACE_WITH_GITHUB_OWNER"
-const GITHUB_REPO := "REPLACE_WITH_GITHUB_REPO"
+const GITHUB_OWNER := "Arch1105"
+const GITHUB_REPO := "shoot-royale"
 
 signal update_available(version: String)
 signal up_to_date()
