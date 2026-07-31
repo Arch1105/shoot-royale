@@ -12,8 +12,11 @@ extends Control
 @onready var join_confirm_button: Button = $VBoxContainer/JoinConfirmButton
 @onready var back_button: Button = $VBoxContainer/BackButton
 
+const WAITING_REANNOUNCE_INTERVAL := 12.0
+
 var _host: LanHost
 var _client: LanClient
+var _waiting_timer: Timer
 
 func _ready() -> void:
 	host_button.pressed.connect(_on_host_pressed)
@@ -44,8 +47,28 @@ func _on_host_pressed() -> void:
 func _on_match_code_ready(code: int) -> void:
 	status_label.text = "Match code: %04d. Waiting for opponent..." % code
 	Voice.say_match_code(code)
+	_start_waiting_reannounce(code)
+
+## The host screen otherwise only speaks the code once - with no ongoing
+## feedback, waiting here reads as "nothing happened / I'm back at the
+## menu" rather than "still searching," especially for a player who can't
+## just glance at the status label. Repeating the code keeps it obviously
+## alive until someone connects.
+func _start_waiting_reannounce(code: int) -> void:
+	_stop_waiting_reannounce()
+	_waiting_timer = Timer.new()
+	_waiting_timer.wait_time = WAITING_REANNOUNCE_INTERVAL
+	_waiting_timer.timeout.connect(func() -> void: Voice.say_match_code(code))
+	add_child(_waiting_timer)
+	_waiting_timer.start()
+
+func _stop_waiting_reannounce() -> void:
+	if _waiting_timer:
+		_waiting_timer.queue_free()
+		_waiting_timer = null
 
 func _on_client_connected(_id: int) -> void:
+	_stop_waiting_reannounce()
 	Voice.say("connected")
 	get_tree().change_scene_to_file("res://scenes/shooter/ShootoutArena.tscn")
 
@@ -88,6 +111,7 @@ func _on_search_timed_out() -> void:
 		_client = null
 
 func _on_back_pressed() -> void:
+	_stop_waiting_reannounce()
 	if _host:
 		_host.stop()
 	if _client:

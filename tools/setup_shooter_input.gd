@@ -16,6 +16,7 @@ func _initialize() -> void:
 	_add_action("shooter_aim_right", [_key(4194321), _joy_axis(2, 1.0)])
 	_add_action("shooter_aim_up", [_key(4194320), _joy_axis(3, -1.0)])
 	_add_action("shooter_aim_down", [_key(4194322), _joy_axis(3, 1.0)])
+	_add_action("shooter_coords", [_key(67), _joy_button(12)])
 	ProjectSettings.save()
 	print("shooter input actions written")
 	quit()

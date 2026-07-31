@@ -60,6 +60,27 @@ const LINES := {
 	"num_18": preload("res://audio/voice/num_18.wav"),
 	"num_19": preload("res://audio/voice/num_19.wav"),
 	"num_20": preload("res://audio/voice/num_20.wav"),
+	"num_21": preload("res://audio/voice/num_21.wav"),
+	"num_22": preload("res://audio/voice/num_22.wav"),
+	"num_23": preload("res://audio/voice/num_23.wav"),
+	"num_24": preload("res://audio/voice/num_24.wav"),
+	"num_25": preload("res://audio/voice/num_25.wav"),
+	"num_26": preload("res://audio/voice/num_26.wav"),
+	"num_27": preload("res://audio/voice/num_27.wav"),
+	"num_28": preload("res://audio/voice/num_28.wav"),
+	"num_29": preload("res://audio/voice/num_29.wav"),
+	"num_30": preload("res://audio/voice/num_30.wav"),
+	"num_31": preload("res://audio/voice/num_31.wav"),
+	"num_32": preload("res://audio/voice/num_32.wav"),
+	"num_33": preload("res://audio/voice/num_33.wav"),
+	"num_34": preload("res://audio/voice/num_34.wav"),
+	"num_35": preload("res://audio/voice/num_35.wav"),
+	"num_36": preload("res://audio/voice/num_36.wav"),
+	"num_37": preload("res://audio/voice/num_37.wav"),
+	"num_38": preload("res://audio/voice/num_38.wav"),
+	"num_39": preload("res://audio/voice/num_39.wav"),
+	"coords_prefix": preload("res://audio/voice/coords_prefix.wav"),
+	"coords_row": preload("res://audio/voice/coords_row.wav"),
 }
 
 ## Mirrors the phrases baked into the wav clips above - must match
@@ -168,6 +189,17 @@ func say_match_result(is_winner: bool, is_tie: bool, my_kills: int) -> void:
 	_say_number(my_kills)
 	_play_clip("elim_singular" if my_kills == 1 else "elim_plural")
 
+## Speaks "Your position is column N, row N." for the coordinates hotkey
+## (see ShooterPlayer._announce_coordinates).
+func say_coordinates(tile_x: int, tile_z: int) -> void:
+	var text: String = "Your position is column %d, row %d." % [tile_x, tile_z]
+	if _speak_via_screen_reader(text):
+		return
+	_play_clip("coords_prefix")
+	_say_number(tile_x)
+	_play_clip("coords_row")
+	_say_number(tile_z)
+
 func _say_number(n: int) -> void:
 	var key := "num_%d" % n
 	if LINES.has(key):
@@ -182,12 +214,28 @@ func speak_text(text: String) -> void:
 
 ## Returns true if a running screen reader actually spoke the text.
 func _speak_via_screen_reader(text: String) -> bool:
-	var exe_path: String = ProjectSettings.globalize_path(NVDA_HELPER_PATH)
-	if not FileAccess.file_exists(exe_path):
+	var exe_path: String = _resolve_nvda_helper_path()
+	if exe_path == "":
 		return false
 	var output: Array = []
 	var exit_code: int = OS.execute(exe_path, [text], output, false, false)
 	return exit_code == 0
+
+## NvdaSpeak.exe is a real native process, not a Godot resource, so it can't
+## live inside an exported build's embedded .pck - ProjectSettings.
+## globalize_path() only resolves to a real file when running uncompressed
+## from the editor/project folder. An exported single-file .exe therefore
+## needs bin/ copied as loose files next to it (see tools/build_export.ps1);
+## this checks there first and falls back to the res://-relative path so the
+## same code works unmodified in the editor during development.
+func _resolve_nvda_helper_path() -> String:
+	var beside_exe: String = OS.get_executable_path().get_base_dir().path_join("bin/NvdaSpeak.exe")
+	if FileAccess.file_exists(beside_exe):
+		return beside_exe
+	var dev_path: String = ProjectSettings.globalize_path(NVDA_HELPER_PATH)
+	if FileAccess.file_exists(dev_path):
+		return dev_path
+	return ""
 
 func _play_clip(key: String) -> void:
 	var stream: AudioStream = LINES.get(key)

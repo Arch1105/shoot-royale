@@ -29,6 +29,7 @@ const SOUNDS := {
 	"lock_beep": preload("res://audio/sfx/lock_beep.wav"),
 	"lock_on_full": preload("res://audio/sfx/lock_on_full.wav"),
 	"denied": preload("res://audio/sfx/denied.wav"),
+	"wall": preload("res://audio/sfx_lib/wall.ogg"),
 }
 
 ## Tuned relative to the 40x20 tile field (see ShooterField.TILE_SIZE): wide
@@ -52,12 +53,17 @@ func play_at(sound_name: String, global_pos: Vector3, volume_db: float = 0.0, pi
 	var stream: AudioStream = entry[randi() % entry.size()] if entry is Array else entry
 	var player := AudioStreamPlayer3D.new()
 	player.stream = stream
-	player.global_position = global_pos
 	player.volume_db = volume_db
 	player.pitch_scale = pitch
 	player.max_distance = max_distance
 	player.unit_size = unit_size
+	# global_position must be set AFTER add_child: a Node3D not yet inside
+	# the tree has no parent transform to combine with, so the setter just
+	# silently fails (logs "!is_inside_tree()") and the sound would have
+	# played from the origin instead of the intended world position - likely
+	# far enough from every listener to be fully attenuated to silence.
 	get_tree().current_scene.add_child(player)
+	player.global_position = global_pos
 	player.play()
 	player.finished.connect(player.queue_free)
 

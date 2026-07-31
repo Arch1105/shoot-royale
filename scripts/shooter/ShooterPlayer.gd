@@ -23,7 +23,7 @@ signal respawned(who: ShooterPlayer)
 
 @export var move_speed: float = 6.0
 @export var jump_velocity: float = 6.0
-@export var max_ammo: int = 8
+@export var max_ammo: int = 6
 @export var reload_time: float = 1.4
 @export var fire_cooldown: float = 0.35
 @export var respawn_delay: float = 3.0
@@ -40,10 +40,10 @@ signal respawned(who: ShooterPlayer)
 const GRAVITY := 16.0
 const FOOTSTEP_INTERVAL := 0.38
 const MOVE_EPSILON := 0.02
+const WALL_HIT_COOLDOWN := 0.4
 
 @onready var gun_pivot: Node3D = $GunPivot
 @onready var audio_listener: AudioListener3D = $GunPivot/AudioListener3D
-@onready var sync: MultiplayerSynchronizer = $MultiplayerSynchronizer
 
 var aim_dir: Vector3 = Vector3(0.0, 0.0, -1.0)
 var alive: bool = true
@@ -59,26 +59,38 @@ var _beacon_timer: float = 0.0
 var _was_locked: bool = false
 var _lock_on_player: AudioStreamPlayer = null
 var _prev_position: Vector3
+var _wall_cooldown: float = 0.0
 
 func _ready() -> void:
 	add_to_group("shooter_players")
 	ammo = max_ammo
 	_prev_position = position
-	set_multiplayer_authority(str(name).to_int())
-	_setup_replication()
+	# multiplayer_authority AND replication config are both set explicitly by
+	# ShooterGameManager._spawn_player_instance, before this node enters the
+	# tree (see configure_replication below for why timing matters) - deriving
+	# authority here from `name` again was the original approach, but nothing
+	# guaranteed every peer's replicated copy landed on the same name, which
+	# silently broke is_multiplayer_authority() on clients.
 	if is_multiplayer_authority():
 		audio_listener.make_current()
 
-## Built in code rather than as a hand-authored SceneReplicationConfig
-## sub-resource in the .tscn - fewer places to get the serialized format
-## subtly wrong.
-func _setup_replication() -> void:
+## Called from ShooterGameManager._spawn_player_instance, before this node is
+## added to the tree. That timing matters: the multiplayer replication system
+## registers a MultiplayerSynchronizer's config as soon as the node *enters*
+## the tree, which happens before this script's own _ready() would run if
+## this were called from there instead - that ordering produced a logged
+## "ERR_UNCONFIGURED" and meant the first replication pass silently found no
+## config yet. Built in code rather than as a hand-authored
+## SceneReplicationConfig sub-resource in the .tscn - fewer places to get the
+## serialized format subtly wrong.
+func configure_replication() -> void:
+	var sync_node: MultiplayerSynchronizer = get_node("MultiplayerSynchronizer")
 	var config := SceneReplicationConfig.new()
 	config.add_property(NodePath(".:position"))
 	config.property_set_replication_mode(NodePath(".:position"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
 	config.add_property(NodePath(".:aim_dir"))
 	config.property_set_replication_mode(NodePath(".:aim_dir"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
-	sync.replication_config = config
+	sync_node.replication_config = config
 
 func peer_id() -> int:
 	return str(name).to_int()
@@ -92,6 +104,8 @@ func _physics_process(delta: float) -> void:
 		_handle_reload(delta)
 		_handle_proximity_beacon(delta)
 		_handle_aim_assist(delta)
+		if Input.is_action_just_pressed("shooter_coords"):
+			_announce_coordinates()
 		if _invuln_timer > 0.0:
 			_invuln_timer -= delta
 	gun_pivot.look_at(gun_pivot.global_position + aim_dir, Vector3.UP)
@@ -99,6 +113,8 @@ func _physics_process(delta: float) -> void:
 	_prev_position = position
 
 func _handle_move(delta: float) -> void:
+	if _wall_cooldown > 0.0:
+		_wall_cooldown -= delta
 	var move_x := Input.get_axis("shooter_move_left", "shooter_move_right")
 	var move_z := Input.get_axis("shooter_move_up", "shooter_move_down")
 	velocity.x = move_x * move_speed
@@ -106,6 +122,22 @@ func _handle_move(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	move_and_slide()
+	_handle_wall_bump(move_x, move_z)
+
+## The arena's boundary walls (see ShooterField) are solid but silent on
+## their own - this is what actually tells a player they've hit the edge and
+## need to turn, mirroring Character.gd's wall-bump cue in the bat mode.
+func _handle_wall_bump(move_x: float, move_z: float) -> void:
+	if _wall_cooldown > 0.0 or (move_x == 0.0 and move_z == 0.0):
+		return
+	for i in range(get_slide_collision_count()):
+		var collision := get_slide_collision(i)
+		var normal: Vector3 = collision.get_normal()
+		if abs(normal.y) > 0.6:
+			continue # floor/ceiling, not a wall
+		_wall_cooldown = WALL_HIT_COOLDOWN
+		rpc("_broadcast_positional_sfx", "wall", global_position)
+		break
 
 func _handle_jump() -> void:
 	if Input.is_action_just_pressed("shooter_jump") and is_on_floor():
@@ -148,8 +180,13 @@ func _start_reload() -> void:
 	Voice.say("reload_start")
 
 func _handle_footsteps(delta: float) -> void:
+	# Deliberately not gated on is_on_floor(): that only reflects real
+	# physics state for the authority's own body. A remote peer's copy of
+	# this node never runs move_and_slide (its position just gets snapped by
+	# MultiplayerSynchronizer), so is_on_floor() would stay false forever and
+	# nobody would ever hear that player's footsteps.
 	var moved: float = Vector2(position.x - _prev_position.x, position.z - _prev_position.z).length()
-	if alive and is_on_floor() and moved > MOVE_EPSILON:
+	if alive and moved > MOVE_EPSILON:
 		_footstep_timer -= delta
 		if _footstep_timer <= 0.0:
 			_footstep_timer = FOOTSTEP_INTERVAL
@@ -224,6 +261,14 @@ func _handle_aim_assist(delta: float) -> void:
 	if _lock_beep_timer <= 0.0:
 		_lock_beep_timer = lerp(0.9, 0.08, closeness)
 		Sfx3D.play_ui("lock_beep", lerp(-16.0, 0.0, closeness), lerp(0.9, 1.6, closeness))
+
+## D-pad down / C: reads out which of the 40x20 tiles you're standing on.
+func _announce_coordinates() -> void:
+	var tile_x: int = int(floor((global_position.x + ShooterField.FIELD_LENGTH / 2.0) / ShooterField.TILE_SIZE))
+	var tile_z: int = int(floor((global_position.z + ShooterField.FIELD_WIDTH / 2.0) / ShooterField.TILE_SIZE))
+	tile_x = clamp(tile_x, 0, ShooterField.LENGTH_TILES - 1)
+	tile_z = clamp(tile_z, 0, ShooterField.WIDTH_TILES - 1)
+	Voice.say_coordinates(tile_x, tile_z)
 
 func _end_lock() -> void:
 	if _was_locked and _lock_on_player:

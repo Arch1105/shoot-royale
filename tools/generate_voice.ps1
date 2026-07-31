@@ -42,9 +42,11 @@ $lines = @{
     "opponent_wins"       = "Opponent wins."
     "match_tie"           = "It's a tie."
     "reload_start"        = "Reloading."
+    "coords_prefix"       = "Your position is column"
+    "coords_row"          = "row"
 }
 
-for ($i = 0; $i -le 20; $i++) {
+for ($i = 0; $i -le 39; $i++) {
     $lines["num_$i"] = "$i"
 }
 

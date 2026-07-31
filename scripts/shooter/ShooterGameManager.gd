@@ -11,6 +11,26 @@ class_name ShooterGameManager
 ## clients explicitly request their own spawn (_request_spawn) after their
 ## local _ready() has run, rather than the server spawning the instant ENet
 ## reports a connected peer.
+##
+## Spawning goes through spawner.spawn_function rather than a plain add_child
+## with a pre-set node name: add_child under a watched spawn_path replicates
+## *that* instantiation, but there is no guarantee every peer's copy ends up
+## with the exact same node name the server set beforehand. ShooterPlayer
+## derives its multiplayer authority from its name, so a mismatch there
+## silently breaks is_multiplayer_authority() on the client - which quietly
+## disables movement, shooting, footsteps and aim-assist all at once (this
+## was the actual cause of "no sound for anything"). spawn_function runs the
+## exact same code, with the exact same peer-id argument, on every peer, so
+## the name/authority assignment can't drift.
+##
+## Registration (connecting died/respawned, seeding _kills/_deaths) happens
+## via players_container.child_entered_tree instead of inline after spawning:
+## that signal fires on *every* peer whenever a player node lands in their
+## local tree, whether it was spawned locally (server) or arrived through the
+## spawner's replication (clients). Doing it only where the server calls
+## spawn() - as an earlier version did - meant a client never connected to
+## anyone's signals at all, silently breaking its own score tracking and
+## death/respawn/match-end announcements.
 
 const MATCH_DURATION := 360.0 # 6 minutes
 const TIME_LOW_WARNING := 60.0
@@ -32,6 +52,8 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	spawner.spawn_path = spawner.get_path_to(players_container)
 	spawner.add_spawnable_scene("res://scenes/shooter/ShooterPlayer.tscn")
+	spawner.spawn_function = _spawn_player_instance
+	players_container.child_entered_tree.connect(_on_player_spawned)
 	if multiplayer.is_server():
 		_spawn_player(1)
 	else:
@@ -73,17 +95,28 @@ func _on_peer_disconnected(id: int) -> void:
 		p.queue_free()
 		_players.erase(id)
 
+## Runs identically on every peer via spawner.spawn()'s replication - see the
+## note at the top of this file for why this replaces a plain add_child.
+func _spawn_player_instance(id: Variant) -> Node:
+	var peer_id: int = int(id)
+	var scene: PackedScene = preload("res://scenes/shooter/ShooterPlayer.tscn")
+	var player: ShooterPlayer = scene.instantiate()
+	player.name = str(peer_id)
+	player.set_multiplayer_authority(peer_id)
+	player.configure_replication()
+	return player
+
 func _spawn_player(id: int) -> void:
 	if not multiplayer.is_server() or _players.has(id):
 		return
-	var scene: PackedScene = preload("res://scenes/shooter/ShooterPlayer.tscn")
-	var player: ShooterPlayer = scene.instantiate()
-	player.name = str(id)
+	var player: ShooterPlayer = spawner.spawn(id)
 	player.position = field.random_spawn_point()
-	players_container.add_child(player, true)
-	_register_player(player)
 
-func _register_player(player: ShooterPlayer) -> void:
+## Fires on every peer for every player node that lands under Players,
+## whether spawned locally (server) or replicated in (clients) - see the note
+## at the top of this file.
+func _on_player_spawned(node: Node) -> void:
+	var player: ShooterPlayer = node
 	var id := player.peer_id()
 	_players[id] = player
 	_kills[id] = _kills.get(id, 0)
