@@ -12,3 +12,6 @@ tools/footsteps_src/
 
 # Local Claude Code tool-permission config, not game source
 .claude/
+
+# Python bytecode cache from running the tools/generate_*.py scripts
+__pycache__/
