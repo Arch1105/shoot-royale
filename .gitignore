@@ -1,0 +1,14 @@
+# Godot editor cache/import cache - regenerated automatically
+.godot/
+
+# Vendored Godot editor binaries (~170MB) - not source, redownloadable
+tools/godot/
+
+# Raw third-party source packs already extracted/converted into audio/ or bin/
+tools/nvda_src/
+tools/sfx_src/
+tools/swish_src/
+tools/footsteps_src/
+
+# Local Claude Code tool-permission config, not game source
+.claude/

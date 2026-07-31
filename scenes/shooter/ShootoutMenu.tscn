@@ -1,0 +1,81 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/shooter/ShootoutMenu.gd" id="1"]
+
+[node name="ShootoutMenu" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.08, 0.08, 0.11, 1)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 32
+text = "Multiplayer Shootout"
+accessibility_name = "Multiplayer Shootout"
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 2
+custom_minimum_size = Vector2(360, 0)
+text = ""
+accessibility_name = "Status"
+
+[node name="HostButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "Host Match"
+accessibility_name = "Host match"
+accessibility_description = "Create a new match on this Wi-Fi network and get a 4 digit code to give your friend."
+
+[node name="JoinButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "Join Match"
+accessibility_name = "Join match"
+accessibility_description = "Enter a 4 digit code to join a friend's match on this Wi-Fi network."
+
+[node name="CodeInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 44)
+visible = false
+max_length = 4
+placeholder_text = "4-digit code"
+accessibility_name = "Match code"
+accessibility_description = "Type the 4 digit code your friend gave you, then press Enter."
+
+[node name="JoinConfirmButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+visible = false
+text = "Connect"
+accessibility_name = "Connect"
+accessibility_description = "Search the network for a match with that code."
+
+[node name="BackButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(280, 52)
+text = "Back"
+accessibility_name = "Back"
+accessibility_description = "Return to the main menu."
