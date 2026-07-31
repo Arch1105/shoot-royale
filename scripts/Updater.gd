@@ -40,7 +40,7 @@ func check_for_update() -> void:
 	var url: String = "https://api.github.com/repos/%s/%s/releases/latest" % [GITHUB_OWNER, GITHUB_REPO]
 	if not _http.request_completed.is_connected(_on_check_completed):
 		_http.request_completed.connect(_on_check_completed, CONNECT_ONE_SHOT)
-	var err: int = _http.request(url, ["User-Agent: BashRoyaleUpdater"])
+	var err: int = _http.request(url, ["User-Agent: ShootRoyaleUpdater"])
 	if err != OK:
 		check_failed.emit("request_error")
 
@@ -84,10 +84,10 @@ func start_download() -> void:
 		check_failed.emit("no_download_url")
 		return
 	Voice.speak_text("Downloading update.")
-	var download_path: String = OS.get_executable_path().get_base_dir().path_join("BashRoyale.update.exe")
+	var download_path: String = OS.get_executable_path().get_base_dir().path_join("ShootRoyale.update.exe")
 	_http.download_file = download_path
 	_http.request_completed.connect(_on_download_completed, CONNECT_ONE_SHOT)
-	var err: int = _http.request(_download_url, ["User-Agent: BashRoyaleUpdater"])
+	var err: int = _http.request(_download_url, ["User-Agent: ShootRoyaleUpdater"])
 	if err != OK:
 		check_failed.emit("download_request_error")
 
@@ -104,7 +104,7 @@ func install_and_restart() -> void:
 	var exe_path: String = OS.get_executable_path()
 	var dir: String = exe_path.get_base_dir()
 	var exe_name: String = exe_path.get_file()
-	var new_exe: String = dir.path_join("BashRoyale.update.exe")
+	var new_exe: String = dir.path_join("ShootRoyale.update.exe")
 	var bat_path: String = dir.path_join("bash_royale_update.bat")
 	var bat_lines: PackedStringArray = [
 		"@echo off",
